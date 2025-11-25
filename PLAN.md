@@ -322,38 +322,209 @@ creep report "Company Name" --format html --output report.html
 
 ---
 
-### Phase 8: Full Pipeline & ML Enhancement ⏳ NOT STARTED
-
-#### 8.1 Full Scan Pipeline
-```python
-# Orchestrate all scrapers and generate report
-async def full_scan(company_name: str, state: str = "FL") -> Report:
-    # 1. Run all scrapers in parallel
-    license_results = await scan_license(company_name, state)
-    bbb_results = await scan_reviews(company_name, state)
-    court_results = await scan_courts(company_name)
-    lien_results = await scan_liens(company_name)
-
-    # 2. Calculate risk score
-    risk_score = calculate_risk(company_id)
-
-    # 3. Generate report
-    report = generate_report(company_id, format="pdf")
-
-    return report
-```
+### Phase 8: Full Pipeline ✅ COMPLETE
 
 **CLI Command:**
 ```bash
 creep scan "Company Name" --state FL --output report.pdf --format pdf
 ```
 
-#### 8.2 ML Enhancement (Future)
-- Synthetic training data generation based on weighted rules
-- sklearn pipeline: StandardScaler → LogisticRegression
-- Feature importance / SHAP values
-- A/B comparison with weighted scorer
-- Feedback loop for labeling actual outcomes
+**Features:**
+- Orchestrated full scan running all scrapers in parallel
+- Risk score calculation
+- Report generation
+
+---
+
+## Web Application Migration
+
+The following phases transform CREEP from a CLI tool into a Vercel-deployable web application.
+
+### Phase 9: Next.js Foundation ✅ COMPLETE
+
+**Goal:** Create base Next.js application with database connectivity
+
+**Completed 2025-11-25:**
+- ✅ Next.js 14.2.15 initialized in `web/` directory
+- ✅ Tailwind CSS + shadcn/ui configured with CSS variables
+- ✅ Drizzle ORM schema created (10 tables matching Python models)
+- ✅ Landing page with search form UI
+- ✅ Health check API endpoint (`/api/health`)
+- ✅ Build verified successful
+
+**Files created:**
+```
+web/
+├── app/
+│   ├── layout.tsx              # ✅ Root layout with Inter font
+│   ├── page.tsx                # ✅ Landing page with search form
+│   ├── globals.css             # ✅ Tailwind + CSS variables
+│   └── api/health/route.ts     # ✅ Health check endpoint
+├── lib/
+│   ├── db.ts                   # ✅ Neon/Drizzle connection
+│   └── utils.ts                # ✅ cn() utility for shadcn
+├── db/
+│   └── schema.ts               # ✅ Complete Drizzle schema
+├── components/ui/
+│   └── button.tsx              # ✅ shadcn Button component
+├── package.json                # ✅ All dependencies
+├── tailwind.config.ts          # ✅ shadcn theme config
+├── drizzle.config.ts           # ✅ Drizzle kit config
+├── components.json             # ✅ shadcn config
+└── .env.local.example          # ✅ Environment template
+```
+
+**To run:**
+```bash
+cd web && npm run dev
+# Visit http://localhost:3000
+```
+
+---
+
+### Phase 10: Core API Routes ⏳ NEXT UP
+
+**Goal:** Port scrapers and create REST API endpoints
+
+**Prerequisites (do these first!):**
+1. **Create Neon account** → https://neon.tech (free tier)
+   - Create a project, get connection string
+   - Add to `web/.env.local` as `DATABASE_URL`
+   - Run `npm run db:push` to create tables
+
+2. **Create Browserless account** → https://browserless.io (free tier: 6 hrs/mo)
+   - Get API token
+   - Add to `web/.env.local` as `BROWSERLESS_TOKEN`
+
+3. **(Optional) CourtListener API token** → https://courtlistener.com
+   - Improves search results
+   - Add to `web/.env.local` as `COURTLISTENER_API_TOKEN`
+
+**Critical Constraint:** Playwright does not work on Vercel serverless. Use Browserless.io for browser-based scraping.
+
+| Scraper | Method | Strategy |
+|---------|--------|----------|
+| Florida DBPR | Playwright | Browserless.io |
+| BBB | httpx + parsing | Direct fetch, Browserless fallback |
+| CourtListener | REST API | Direct fetch |
+| Florida UCC | Playwright | Browserless.io |
+
+**Files to create:**
+```
+web/lib/scrapers/
+├── base.ts              # Port from src/creep/scrapers/base.py
+├── browser.ts           # Browserless.io connection wrapper
+├── florida-dbpr.ts      # Port from src/creep/scrapers/florida_dbpr.py
+├── bbb.ts               # Port from src/creep/scrapers/bbb.py
+├── courtlistener.ts     # Port from src/creep/scrapers/courtlistener.py
+└── florida-ucc.ts       # Port from src/creep/scrapers/florida_ucc.py
+
+web/app/api/
+├── companies/
+│   ├── route.ts         # GET (list), POST (create)
+│   └── [id]/route.ts    # GET, DELETE single company
+└── search/
+    ├── license/route.ts # POST - DBPR search
+    ├── reviews/route.ts # POST - BBB search
+    ├── courts/route.ts  # POST - CourtListener search
+    ├── liens/route.ts   # POST - UCC search
+    └── full/route.ts    # POST - All sources
+```
+
+**API Endpoints:**
+```
+POST /api/search/license     - DBPR search
+POST /api/search/reviews     - BBB search
+POST /api/search/courts      - CourtListener search
+POST /api/search/liens       - UCC search
+POST /api/search/full        - All sources
+GET  /api/companies          - List companies
+POST /api/companies          - Create company
+GET  /api/companies/:id      - Get company with data
+```
+
+**Reference Python files for porting:**
+- `src/creep/scrapers/base.py` → Rate limiting, stealth headers
+- `src/creep/scrapers/florida_dbpr.py` → DBPR scraper logic
+- `src/creep/scrapers/bbb.py` → BBB parsing (`__PRELOADED_STATE__`)
+- `src/creep/scrapers/courtlistener.py` → API client
+- `src/creep/scrapers/florida_ucc.py` → UCC with MUI dialog handling
+
+---
+
+### Phase 11: Risk Scoring Engine ⏳ NOT STARTED
+
+**Goal:** Port risk calculation logic to TypeScript
+
+**Files:**
+```
+web/lib/scoring/
+├── features.ts    # Feature extraction (port from features.py)
+├── scorer.ts      # Weighted risk scorer (port from scorer.py)
+└── types.ts       # TypeScript interfaces
+```
+
+**API Endpoints:**
+```
+POST /api/companies/:id/risk-score  - Calculate risk score
+GET  /api/companies/:id/risk-score  - Get latest score
+```
+
+---
+
+### Phase 12: Report Generation ⏳ NOT STARTED
+
+**Goal:** PDF reports using @react-pdf/renderer (replaces WeasyPrint for serverless compatibility)
+
+**Files:**
+```
+web/lib/reports/
+├── template.tsx              # React-PDF document
+├── components/               # Report sections
+└── charts.tsx                # SVG chart generation
+```
+
+**API Endpoints:**
+```
+POST /api/reports        - Generate report
+GET  /api/reports/:id    - Download PDF
+```
+
+---
+
+### Phase 13: Frontend UI ⏳ NOT STARTED
+
+**Goal:** Complete user interface
+
+**Pages:**
+- `/` - Search landing page
+- `/results` - Search results display
+- `/companies/:id` - Company detail + risk score
+
+**Components:**
+- SearchForm, SearchResults, CompanyCard
+- RiskScoreDisplay, RiskBreakdownChart
+- LoadingStates, ErrorBoundary
+
+---
+
+### Phase 14: Polish & Deploy ⏳ NOT STARTED
+
+**Goal:** Final touches and Vercel deployment
+
+**Tasks:**
+- Rate limiting to protect Browserless quota
+- SEO meta tags
+- Performance optimization
+- Vercel deployment configuration
+- Environment variables in Vercel dashboard
+
+**Free Tier Budget:**
+| Service | Limit | Expected |
+|---------|-------|----------|
+| Vercel | 100GB bandwidth | ~5GB/mo |
+| Neon | 0.5GB storage | ~100MB |
+| Browserless | 6 hrs/month | ~2-3 hrs |
 
 ---
 
@@ -361,20 +532,17 @@ creep scan "Company Name" --state FL --output report.pdf --format pdf
 
 ```
 CREEP/
-├── src/creep/
+├── src/creep/                 # Python CLI (preserved)
 │   ├── __init__.py
 │   ├── __main__.py
 │   ├── config.py              # ✅ Pydantic settings
 │   ├── cli/
-│   │   ├── __init__.py
 │   │   └── commands.py        # ✅ Typer CLI
 │   ├── db/
-│   │   ├── __init__.py
 │   │   ├── engine.py          # ✅ Async SQLAlchemy
 │   │   ├── models.py          # ✅ ORM models
 │   │   └── repository.py      # ✅ Repository pattern
 │   ├── scrapers/
-│   │   ├── __init__.py
 │   │   ├── base.py            # ✅ Base scraper class
 │   │   ├── schemas.py         # ✅ Pydantic schemas
 │   │   ├── florida_dbpr.py    # ✅ FL license scraper
@@ -382,19 +550,33 @@ CREEP/
 │   │   ├── courtlistener.py   # ✅ Court records scraper
 │   │   └── florida_ucc.py     # ✅ UCC liens scraper
 │   ├── scoring/
-│   │   ├── __init__.py        # ⏳ Empty stub
-│   │   ├── features.py        # ⏳ TODO: Feature extractor
-│   │   └── scorer.py          # ⏳ TODO: Risk scorer
+│   │   ├── features.py        # ✅ Feature extractor
+│   │   └── scorer.py          # ✅ Risk scorer
 │   ├── reports/
-│   │   ├── __init__.py        # ⏳ Empty stub
-│   │   ├── generator.py       # ⏳ TODO: Report generator
-│   │   └── templates/         # ⏳ TODO: Jinja2 templates
+│   │   ├── generator.py       # ✅ Report generator
+│   │   ├── charts.py          # ✅ SVG charts
+│   │   └── templates/         # ✅ Jinja2 templates
 │   └── utils/
 │       └── __init__.py
+├── web/                       # Next.js Web App (Phase 9+)
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   └── api/               # API routes
+│   ├── lib/
+│   │   ├── db.ts              # Neon connection
+│   │   ├── scrapers/          # TypeScript scrapers
+│   │   ├── scoring/           # Risk scoring
+│   │   └── reports/           # PDF generation
+│   ├── db/
+│   │   └── schema.ts          # Drizzle ORM schema
+│   ├── components/            # React components
+│   ├── package.json
+│   └── drizzle.config.ts
 ├── alembic/                   # ✅ Database migrations
 ├── tests/
-│   └── __init__.py
-├── pyproject.toml             # ✅ Project config
+├── pyproject.toml             # ✅ Python project config
+├── docker-compose.yml         # Local PostgreSQL
 ├── .env                       # Environment variables (not in git)
 ├── PLAN.md                    # This file
 └── README.md
@@ -456,23 +638,44 @@ uv run creep report "ABC Construction" --format pdf
 
 ## Next Steps
 
-1. **Phase 6: Risk Scoring Engine**
-   - Implement `src/creep/scoring/features.py` - Feature extractor
-   - Implement `src/creep/scoring/scorer.py` - Weighted risk calculator
-   - Update CLI `calculate-risk` command
-   - Add unit tests with synthetic test cases
+**CLI Tool (Phases 1-8): ✅ COMPLETE**
 
-2. **Phase 7: Report Generation**
-   - Create Jinja2 templates for HTML reports
-   - Implement PDF generation with WeasyPrint
-   - Add risk breakdown visualization (Chart.js)
-   - Update CLI `report` command
+**Web Application Migration:**
 
-3. **Phase 8: Full Pipeline**
-   - Implement orchestrated `scan` command
-   - Parallel scraper execution with asyncio
-   - Batch processing from CSV
-   - Error handling and retry logic
+1. **Phase 9: Next.js Foundation** ✅ COMPLETE (2025-11-25)
+   - Next.js 14 initialized in `web/`
+   - Tailwind + shadcn/ui configured
+   - Drizzle ORM schema created
+   - Health check API working
+
+2. **Phase 10: Core API Routes** ⏳ NEXT UP
+   - [ ] Set up Neon PostgreSQL (get connection string)
+   - [ ] Set up Browserless.io (get API token)
+   - [ ] Port scrapers to TypeScript
+   - [ ] Create REST API endpoints
+   - [ ] Implement database caching
+
+3. **Phase 11-14: Scoring, Reports, UI, Deploy**
+   - See detailed phase descriptions above
+
+---
+
+## Quick Reference
+
+**Start web dev server:**
+```bash
+cd web && npm run dev
+```
+
+**Push schema to Neon (after setting DATABASE_URL):**
+```bash
+cd web && npm run db:push
+```
+
+**View database (Drizzle Studio):**
+```bash
+cd web && npm run db:studio
+```
 
 ---
 
