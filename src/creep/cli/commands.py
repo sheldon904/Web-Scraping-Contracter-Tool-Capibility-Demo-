@@ -213,12 +213,105 @@ def scan_license(
 @app.command(name="scan-reviews")
 def scan_reviews(
     company_name: Annotated[str, typer.Argument(help="Company name to scan")],
+    city: Annotated[str, typer.Option(help="City to search in")] = "miami",
+    state: Annotated[str, typer.Option(help="State to search")] = "FL",
+    save: Annotated[bool, typer.Option(help="Save results to database")] = True,
 ):
-    """Scan reviews from BBB and other sources."""
-    console.print(f"[bold blue]Scanning reviews for:[/] {company_name}")
+    """Scan BBB profile and reviews for a company."""
+    from creep.scrapers.bbb import BBBScraper
+    from creep.db.repository import BBBProfileRepository
 
-    # TODO: Implement review scanning
-    console.print("[yellow]Review scanning not yet implemented (Phase 3)[/]")
+    async def _scan():
+        # Get or create company
+        async with get_session() as session:
+            company_repo = CompanyRepository(session)
+            company, created = await company_repo.get_or_create(company_name, state)
+            company_id = company.id
+
+            if created:
+                console.print(f"[dim]Created new company record: {company.id}[/]")
+
+        # Run the BBB scraper
+        async with BBBScraper() as scraper:
+            console.print(f"[bold blue]Searching BBB for:[/] {company_name} in {city}, {state}")
+            results = await scraper.search_and_get_details(company_name, city, state)
+
+            if not results:
+                console.print("[yellow]No BBB profiles found.[/]")
+                return []
+
+            console.print(f"[green]Found {len(results)} BBB profile(s)[/]")
+
+            # Save to database if requested
+            if save and results:
+                async with get_session() as session:
+                    bbb_repo = BBBProfileRepository(session)
+                    for profile in results:
+                        await bbb_repo.create(
+                            company_id=company_id,
+                            bbb_rating=profile.bbb_rating,
+                            accredited=profile.accredited,
+                            years_in_business=profile.years_in_business,
+                            complaint_count=profile.complaint_count,
+                            complaint_resolved_count=profile.complaints_closed_last_3_years,
+                            profile_url=profile.profile_url,
+                            raw_data=profile.raw_data,
+                        )
+                console.print("[green]Results saved to database.[/]")
+
+            return results
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        progress.add_task("Scanning BBB...", total=None)
+        results = asyncio.run(_scan())
+
+    # Display results
+    if results:
+        table = Table(title="BBB Profile Results")
+        table.add_column("Business Name", style="cyan", max_width=30)
+        table.add_column("Rating", style="green", justify="center")
+        table.add_column("Accredited", justify="center")
+        table.add_column("Years", justify="center")
+        table.add_column("Complaints", style="yellow", justify="center")
+        table.add_column("Reviews", justify="center")
+        table.add_column("Avg Rating", justify="center")
+
+        for r in results:
+            accredited_style = "green" if r.accredited else "dim"
+            accredited_text = "[green]Yes[/]" if r.accredited else "[dim]No[/]"
+
+            rating_style = "green"
+            if r.bbb_rating in ["F", "D+", "D", "D-"]:
+                rating_style = "red"
+            elif r.bbb_rating in ["C+", "C", "C-"]:
+                rating_style = "yellow"
+
+            complaints = str(r.complaint_count) if r.complaint_count is not None else "N/A"
+            reviews = str(r.customer_reviews_count) if r.customer_reviews_count is not None else "N/A"
+            avg_rating = f"{r.average_customer_rating:.1f}" if r.average_customer_rating else "N/A"
+            years = str(r.years_in_business) if r.years_in_business else "N/A"
+
+            table.add_row(
+                r.business_name[:30] if r.business_name else "N/A",
+                f"[{rating_style}]{r.bbb_rating or 'N/A'}[/{rating_style}]",
+                accredited_text,
+                years,
+                complaints,
+                reviews,
+                avg_rating,
+            )
+
+        console.print(table)
+
+        # Show profile URLs
+        console.print("\n[dim]Profile URLs:[/]")
+        for r in results:
+            if r.profile_url:
+                console.print(f"  [link={r.profile_url}]{r.business_name}[/link]")
 
 
 @app.command(name="scan-courts")
