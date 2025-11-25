@@ -176,7 +176,7 @@ creep scan-liens "Company Name" --state FL
 
 ---
 
-### Phase 6: Risk Scoring Engine ⏳ NOT STARTED
+### Phase 6: Risk Scoring Engine ✅ COMPLETE
 
 **Location:** `src/creep/scoring/`
 
@@ -269,7 +269,7 @@ creep calculate-risk "Company Name"
 
 ---
 
-### Phase 7: Report Generation ⏳ NOT STARTED
+### Phase 7: Report Generation ✅ COMPLETE
 
 **Location:** `src/creep/reports/`
 

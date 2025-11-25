@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk Assessment Report - {{ company.name }}</title>
+    <style>
+        /* Base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #1f2937;
+            background: white;
+        }
+
+        /* Page setup for print/PDF */
+        @page {
+            size: letter;
+            margin: 0.75in;
+        }
+
+        @media print {
+            .page-break {
+                page-break-before: always;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 3px solid {{ risk_color }};
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .header-left h1 {
+            font-size: 24pt;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+
+        .header-left .subtitle {
+            font-size: 10pt;
+            color: #6b7280;
+        }
+
+        .header-right {
+            text-align: right;
+        }
+
+        .header-right .date {
+            font-size: 9pt;
+            color: #6b7280;
+        }
+
+        /* Score Card */
+        .score-card {
+            background: {{ risk_color }};
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .score-card .score-value {
+            font-size: 48pt;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .score-card .score-label {
+            font-size: 16pt;
+            margin-top: 5px;
+            opacity: 0.9;
+        }
+
+        .score-card .confidence {
+            font-size: 10pt;
+            margin-top: 10px;
+            opacity: 0.8;
+        }
+
+        /* Section headers */
+        .section-header {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #1f2937;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+            margin-top: 25px;
+        }
+
+        /* Two column layout */
+        .two-column {
+            display: flex;
+            gap: 30px;
+        }
+
+        .two-column > div {
+            flex: 1;
+        }
+
+        /* Category breakdown */
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .category-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            background: #f9fafb;
+        }
+
+        .category-card .category-name {
+            font-size: 10pt;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .category-card .category-score {
+            font-size: 24pt;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+
+        .category-card .category-weight {
+            font-size: 9pt;
+            color: #9ca3af;
+        }
+
+        .category-card.unavailable {
+            opacity: 0.5;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10pt;
+            margin-bottom: 15px;
+        }
+
+        th, td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        th {
+            background: #f9fafb;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Status badges */
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 9pt;
+            font-weight: 500;
+        }
+
+        .badge-green {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-yellow {
+            background: #fef9c3;
+            color: #854d0e;
+        }
+
+        .badge-orange {
+            background: #ffedd5;
+            color: #9a3412;
+        }
+
+        .badge-red {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-gray {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        /* Risk factors */
+        .risk-factor {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .risk-factor:last-child {
+            border-bottom: none;
+        }
+
+        .risk-factor .impact {
+            width: 60px;
+            font-weight: bold;
+            text-align: right;
+            padding-right: 15px;
+        }
+
+        .risk-factor .impact.positive {
+            color: #22c55e;
+        }
+
+        .risk-factor .impact.negative {
+            color: #ef4444;
+        }
+
+        .risk-factor .details {
+            flex: 1;
+        }
+
+        .risk-factor .factor-name {
+            font-weight: 500;
+        }
+
+        .risk-factor .factor-source {
+            font-size: 9pt;
+            color: #6b7280;
+        }
+
+        /* Chart container */
+        .chart-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        /* Finding cards */
+        .finding-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: white;
+        }
+
+        .finding-card .finding-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .finding-card .finding-title {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .finding-card .finding-details {
+            font-size: 10pt;
+            color: #6b7280;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 9pt;
+            color: #9ca3af;
+        }
+
+        .footer .disclaimer {
+            margin-bottom: 10px;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: #9ca3af;
+            font-style: italic;
+        }
+
+        /* Links */
+        a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <h1>{{ company.name }}</h1>
+            <div class="subtitle">Contractor Risk Assessment Report</div>
+        </div>
+        <div class="header-right">
+            <div><strong>CREEP</strong></div>
+            <div class="date">Generated: {{ generated_at.strftime('%B %d, %Y at %I:%M %p') }}</div>
+        </div>
+    </div>
+
+    <!-- Score Card -->
+    {% if risk_score %}
+    <div class="score-card">
+        <div class="score-value">{{ risk_score.overall_score | int }}</div>
+        <div class="score-label">{{ risk_level }}</div>
+        <div class="confidence">Confidence: {{ (risk_score.confidence_level * 100) | int }}%</div>
+    </div>
+    {% else %}
+    <div class="score-card" style="background: #6b7280;">
+        <div class="score-value">N/A</div>
+        <div class="score-label">No Risk Score Available</div>
+        <div class="confidence">Run calculate-risk command first</div>
+    </div>
+    {% endif %}
+
+    <!-- Executive Summary -->
+    <h2 class="section-header">Executive Summary</h2>
+    <div class="two-column">
+        <div>
+            <p>
+                This report provides a risk assessment for <strong>{{ company.name }}</strong> based on
+                publicly available data from licensing boards, court records, business reviews, and
+                financial filings.
+            </p>
+            {% if risk_score %}
+            <p style="margin-top: 10px;">
+                The overall risk score of <strong>{{ risk_score.overall_score | int }}</strong> indicates
+                <strong>{{ risk_level }}</strong>. This assessment is based on
+                {{ (risk_score.confidence_level * 100) | int }}% of available data categories.
+            </p>
+            {% endif %}
+        </div>
+        <div>
+            <!-- Category Breakdown -->
+            <div class="category-grid">
+                {% for cat in category_data %}
+                <div class="category-card {% if not cat.available %}unavailable{% endif %}">
+                    <div class="category-name">{{ cat.name }}</div>
+                    <div class="category-score" style="color: {{ cat.color }};">
+                        {% if cat.score is not none %}{{ cat.score | int }}{% else %}N/A{% endif %}
+                    </div>
+                    <div class="category-weight">Weight: {{ cat.weight }}%</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Risk Factors -->
+    {% if risk_factors %}
+    <h2 class="section-header">Key Risk Factors</h2>
+    <div>
+        {% for factor in risk_factors[:7] %}
+        <div class="risk-factor">
+            <div class="impact {% if factor.impact > 0 %}positive{% else %}negative{% endif %}">
+                {% if factor.impact > 0 %}+{% endif %}{{ factor.impact | int }}
+            </div>
+            <div class="details">
+                <div class="factor-name">{{ factor.name }}</div>
+                <div class="factor-source">{{ factor.source }}{% if factor.details %} - {{ factor.details }}{% endif %}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- License Findings -->
+    <h2 class="section-header">License Information</h2>
+    {% if license_findings %}
+    {% for lic in license_findings %}
+    <div class="finding-card">
+        <div class="finding-header">
+            <span class="finding-title">{{ lic.license_number }}</span>
+            <span class="badge" style="background: {{ lic.status_color }}20; color: {{ lic.status_color }};">
+                {{ lic.status or 'Unknown' }}
+            </span>
+        </div>
+        <div class="finding-details">
+            <table>
+                <tr>
+                    <td><strong>Licensee:</strong> {{ lic.licensee_name or 'N/A' }}</td>
+                    <td><strong>Type:</strong> {{ lic.license_type or 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Issue Date:</strong> {{ lic.issue_date | format_date }}</td>
+                    <td><strong>Expiration:</strong> {{ lic.expiration_date | format_date }}</td>
+                </tr>
+            </table>
+            {% if lic.disciplinary_count > 0 %}
+            <p style="color: #ef4444; margin-top: 10px;">
+                <strong>Disciplinary Actions:</strong> {{ lic.disciplinary_count }} on record
+            </p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">No license information found in database.</div>
+    {% endif %}
+
+    <!-- BBB Findings -->
+    <h2 class="section-header">Better Business Bureau</h2>
+    {% if bbb_findings %}
+    <div class="finding-card">
+        <div class="finding-header">
+            <span class="finding-title">
+                BBB Rating:
+                <span style="color: {{ bbb_findings.rating_color }}; font-size: 18pt;">
+                    {{ bbb_findings.rating or 'Not Rated' }}
+                </span>
+            </span>
+            <span class="badge {% if bbb_findings.accredited %}badge-green{% else %}badge-gray{% endif %}">
+                {% if bbb_findings.accredited %}Accredited{% else %}Not Accredited{% endif %}
+            </span>
+        </div>
+        <div class="finding-details">
+            <table>
+                <tr>
+                    <td><strong>Years in Business:</strong> {{ bbb_findings.years_in_business or 'N/A' }}</td>
+                    <td><strong>Complaints:</strong> {{ bbb_findings.complaint_count or 0 }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Resolved:</strong> {{ bbb_findings.complaint_resolved or 0 }}</td>
+                    <td><strong>Unresolved:</strong> {{ bbb_findings.complaint_unresolved or 0 }}</td>
+                </tr>
+            </table>
+            {% if bbb_findings.profile_url %}
+            <p style="margin-top: 10px;">
+                <a href="{{ bbb_findings.profile_url }}" target="_blank">View BBB Profile</a>
+            </p>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state">No BBB profile found in database.</div>
+    {% endif %}
+
+    <!-- Court Cases -->
+    <h2 class="section-header">Court Records</h2>
+    {% if court_findings %}
+    <table>
+        <thead>
+            <tr>
+                <th>Case</th>
+                <th>Court</th>
+                <th>Filed</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for case in court_findings %}
+            <tr>
+                <td>
+                    {% if case.url %}
+                    <a href="{{ case.url }}" target="_blank">{{ case.case_name[:40] }}{% if case.case_name|length > 40 %}...{% endif %}</a>
+                    {% else %}
+                    {{ case.case_name[:40] }}{% if case.case_name|length > 40 %}...{% endif %}
+                    {% endif %}
+                    <br><span style="font-size: 9pt; color: #6b7280;">{{ case.case_number or 'N/A' }}</span>
+                </td>
+                <td>{{ case.court or 'N/A' }}</td>
+                <td>{{ case.filing_date | format_date('%m/%d/%Y') }}</td>
+                <td>
+                    <span class="badge" style="background: {{ case.status_color }}20; color: {{ case.status_color }};">
+                        {{ case.status or 'Unknown' }}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No court records found in database.</div>
+    {% endif %}
+
+    <!-- UCC Liens -->
+    <h2 class="section-header">UCC Filings / Liens</h2>
+    {% if lien_findings %}
+    <table>
+        <thead>
+            <tr>
+                <th>Filing #</th>
+                <th>Type</th>
+                <th>Secured Party</th>
+                <th>Filed</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for lien in lien_findings %}
+            <tr>
+                <td>{{ lien.filing_number or 'N/A' }}</td>
+                <td>{{ lien.filing_type or 'UCC' }}</td>
+                <td>{{ (lien.secured_party or 'N/A')[:30] }}{% if lien.secured_party and lien.secured_party|length > 30 %}...{% endif %}</td>
+                <td>{{ lien.filing_date | format_date('%m/%d/%Y') }}</td>
+                <td>
+                    <span class="badge" style="background: {{ lien.status_color }}20; color: {{ lien.status_color }};">
+                        {{ lien.status or 'Unknown' }}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No UCC filings found in database.</div>
+    {% endif %}
+
+    <!-- Footer -->
+    <div class="footer">
+        <div class="disclaimer">
+            <strong>Disclaimer:</strong> This report is generated from publicly available data sources
+            and is provided for informational purposes only. It should not be considered legal,
+            financial, or professional advice. The accuracy of the information depends on the
+            underlying data sources and may not reflect the most current status. Always verify
+            critical information through official channels before making decisions.
+        </div>
+        <div>
+            <strong>Data Sources:</strong> Florida DBPR, Better Business Bureau, CourtListener (PACER/RECAP), Florida UCC Registry
+        </div>
+        <div style="margin-top: 10px;">
+            Report generated by CREEP (Contractor Risk Evaluation and Exploration Platform)
+        </div>
+    </div>
+</body>
+</html>

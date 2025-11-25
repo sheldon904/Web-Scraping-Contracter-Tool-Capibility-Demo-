@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk Assessment Report - Toll Brothers</title>
+    <style>
+        /* Base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #1f2937;
+            background: white;
+        }
+
+        /* Page setup for print/PDF */
+        @page {
+            size: letter;
+            margin: 0.75in;
+        }
+
+        @media print {
+            .page-break {
+                page-break-before: always;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 3px solid #eab308;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .header-left h1 {
+            font-size: 24pt;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+
+        .header-left .subtitle {
+            font-size: 10pt;
+            color: #6b7280;
+        }
+
+        .header-right {
+            text-align: right;
+        }
+
+        .header-right .date {
+            font-size: 9pt;
+            color: #6b7280;
+        }
+
+        /* Score Card */
+        .score-card {
+            background: #eab308;
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .score-card .score-value {
+            font-size: 48pt;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .score-card .score-label {
+            font-size: 16pt;
+            margin-top: 5px;
+            opacity: 0.9;
+        }
+
+        .score-card .confidence {
+            font-size: 10pt;
+            margin-top: 10px;
+            opacity: 0.8;
+        }
+
+        /* Section headers */
+        .section-header {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #1f2937;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+            margin-top: 25px;
+        }
+
+        /* Two column layout */
+        .two-column {
+            display: flex;
+            gap: 30px;
+        }
+
+        .two-column > div {
+            flex: 1;
+        }
+
+        /* Category breakdown */
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .category-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            background: #f9fafb;
+        }
+
+        .category-card .category-name {
+            font-size: 10pt;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .category-card .category-score {
+            font-size: 24pt;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+
+        .category-card .category-weight {
+            font-size: 9pt;
+            color: #9ca3af;
+        }
+
+        .category-card.unavailable {
+            opacity: 0.5;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10pt;
+            margin-bottom: 15px;
+        }
+
+        th, td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        th {
+            background: #f9fafb;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Status badges */
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 9pt;
+            font-weight: 500;
+        }
+
+        .badge-green {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-yellow {
+            background: #fef9c3;
+            color: #854d0e;
+        }
+
+        .badge-orange {
+            background: #ffedd5;
+            color: #9a3412;
+        }
+
+        .badge-red {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-gray {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        /* Risk factors */
+        .risk-factor {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .risk-factor:last-child {
+            border-bottom: none;
+        }
+
+        .risk-factor .impact {
+            width: 60px;
+            font-weight: bold;
+            text-align: right;
+            padding-right: 15px;
+        }
+
+        .risk-factor .impact.positive {
+            color: #22c55e;
+        }
+
+        .risk-factor .impact.negative {
+            color: #ef4444;
+        }
+
+        .risk-factor .details {
+            flex: 1;
+        }
+
+        .risk-factor .factor-name {
+            font-weight: 500;
+        }
+
+        .risk-factor .factor-source {
+            font-size: 9pt;
+            color: #6b7280;
+        }
+
+        /* Chart container */
+        .chart-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        /* Finding cards */
+        .finding-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: white;
+        }
+
+        .finding-card .finding-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .finding-card .finding-title {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .finding-card .finding-details {
+            font-size: 10pt;
+            color: #6b7280;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 9pt;
+            color: #9ca3af;
+        }
+
+        .footer .disclaimer {
+            margin-bottom: 10px;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: #9ca3af;
+            font-style: italic;
+        }
+
+        /* Links */
+        a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <h1>Toll Brothers</h1>
+            <div class="subtitle">Contractor Risk Assessment Report</div>
+        </div>
+        <div class="header-right">
+            <div><strong>CREEP</strong></div>
+            <div class="date">Generated: November 25, 2025 at 01:57 PM</div>
+        </div>
+    </div>
+
+    <!-- Score Card -->
+    
+    <div class="score-card">
+        <div class="score-value">52</div>
+        <div class="score-label">Moderate Risk</div>
+        <div class="confidence">Confidence: 40%</div>
+    </div>
+    
+
+    <!-- Executive Summary -->
+    <h2 class="section-header">Executive Summary</h2>
+    <div class="two-column">
+        <div>
+            <p>
+                This report provides a risk assessment for <strong>Toll Brothers</strong> based on
+                publicly available data from licensing boards, court records, business reviews, and
+                financial filings.
+            </p>
+            
+            <p style="margin-top: 10px;">
+                The overall risk score of <strong>52</strong> indicates
+                <strong>Moderate Risk</strong>. This assessment is based on
+                40% of available data categories.
+            </p>
+            
+        </div>
+        <div>
+            <!-- Category Breakdown -->
+            <div class="category-grid">
+                
+                <div class="category-card unavailable">
+                    <div class="category-name">License</div>
+                    <div class="category-score" style="color: #9ca3af;">
+                        N/A
+                    </div>
+                    <div class="category-weight">Weight: 35%</div>
+                </div>
+                
+                <div class="category-card unavailable">
+                    <div class="category-name">Reputation</div>
+                    <div class="category-score" style="color: #9ca3af;">
+                        N/A
+                    </div>
+                    <div class="category-weight">Weight: 25%</div>
+                </div>
+                
+                <div class="category-card ">
+                    <div class="category-name">Litigation</div>
+                    <div class="category-score" style="color: #f97316;">
+                        30
+                    </div>
+                    <div class="category-weight">Weight: 25%</div>
+                </div>
+                
+                <div class="category-card ">
+                    <div class="category-name">Financial</div>
+                    <div class="category-score" style="color: #22c55e;">
+                        90
+                    </div>
+                    <div class="category-weight">Weight: 15%</div>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Risk Factors -->
+    
+    <h2 class="section-header">Key Risk Factors</h2>
+    <div>
+        
+        <div class="risk-factor">
+            <div class="impact positive">
+                +90
+            </div>
+            <div class="details">
+                <div class="factor-name">No UCC Liens Found</div>
+                <div class="factor-source">UCC Search - No UCC filings found in Florida registry</div>
+            </div>
+        </div>
+        
+        <div class="risk-factor">
+            <div class="impact positive">
+                +30
+            </div>
+            <div class="details">
+                <div class="factor-name">Moderate Litigation History</div>
+                <div class="factor-source">Court Records - 5 case(s) found as defendant</div>
+            </div>
+        </div>
+        
+    </div>
+    
+
+    <!-- License Findings -->
+    <h2 class="section-header">License Information</h2>
+    
+    <div class="empty-state">No license information found in database.</div>
+    
+
+    <!-- BBB Findings -->
+    <h2 class="section-header">Better Business Bureau</h2>
+    
+    <div class="empty-state">No BBB profile found in database.</div>
+    
+
+    <!-- Court Cases -->
+    <h2 class="section-header">Court Records</h2>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Case</th>
+                <th>Court</th>
+                <th>Filed</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr>
+                <td>
+                    
+                    <a href="https://www.courtlistener.com/docket/71331392/" target="_blank">Toll Brothers, Inc. v. Gu</a>
+                    
+                    <br><span style="font-size: 9pt; color: #6b7280;">1:25-cv-02884</span>
+                </td>
+                <td>D. Colo.</td>
+                <td>09/12/2025</td>
+                <td>
+                    <span class="badge" style="background: #f9731620; color: #f97316;">
+                        Active
+                    </span>
+                </td>
+            </tr>
+            
+            <tr>
+                <td>
+                    
+                    <a href="https://www.courtlistener.com/docket/70412872/" target="_blank">TOLL BROTHERS, INC. v. United States</a>
+                    
+                    <br><span style="font-size: 9pt; color: #6b7280;">1:25-cv-00922</span>
+                </td>
+                <td>Fed. Cl.</td>
+                <td>05/30/2025</td>
+                <td>
+                    <span class="badge" style="background: #f9731620; color: #f97316;">
+                        Active
+                    </span>
+                </td>
+            </tr>
+            
+            <tr>
+                <td>
+                    
+                    <a href="https://www.courtlistener.com/docket/70139957/" target="_blank">TOLL BROTHERS, INC. v. STEADFAST INSURAN...</a>
+                    
+                    <br><span style="font-size: 9pt; color: #6b7280;">2:25-cv-02279</span>
+                </td>
+                <td>E.D. Pa.</td>
+                <td>05/05/2025</td>
+                <td>
+                    <span class="badge" style="background: #f9731620; color: #f97316;">
+                        Active
+                    </span>
+                </td>
+            </tr>
+            
+            <tr>
+                <td>
+                    
+                    <a href="https://www.courtlistener.com/docket/69649170/" target="_blank">Goldan v. Toll Brothers AZ Limited Partn...</a>
+                    
+                    <br><span style="font-size: 9pt; color: #6b7280;">2:25-cv-00529</span>
+                </td>
+                <td>D. Ariz.</td>
+                <td>02/14/2025</td>
+                <td>
+                    <span class="badge" style="background: #6b728020; color: #6b7280;">
+                        Terminated
+                    </span>
+                </td>
+            </tr>
+            
+            <tr>
+                <td>
+                    
+                    <a href="https://www.courtlistener.com/docket/69338297/" target="_blank">Victoria Tenisha Shanae Dillihunt v. Kra...</a>
+                    
+                    <br><span style="font-size: 9pt; color: #6b7280;">2:24-cv-09406</span>
+                </td>
+                <td>C.D. Cal.</td>
+                <td>10/29/2024</td>
+                <td>
+                    <span class="badge" style="background: #6b728020; color: #6b7280;">
+                        Terminated
+                    </span>
+                </td>
+            </tr>
+            
+        </tbody>
+    </table>
+    
+
+    <!-- UCC Liens -->
+    <h2 class="section-header">UCC Filings / Liens</h2>
+    
+    <div class="empty-state">No UCC filings found in database.</div>
+    
+
+    <!-- Footer -->
+    <div class="footer">
+        <div class="disclaimer">
+            <strong>Disclaimer:</strong> This report is generated from publicly available data sources
+            and is provided for informational purposes only. It should not be considered legal,
+            financial, or professional advice. The accuracy of the information depends on the
+            underlying data sources and may not reflect the most current status. Always verify
+            critical information through official channels before making decisions.
+        </div>
+        <div>
+            <strong>Data Sources:</strong> Florida DBPR, Better Business Bureau, CourtListener (PACER/RECAP), Florida UCC Registry
+        </div>
+        <div style="margin-top: 10px;">
+            Report generated by CREEP (Contractor Risk Evaluation and Exploration Platform)
+        </div>
+    </div>
+</body>
+</html>

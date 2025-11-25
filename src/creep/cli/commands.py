@@ -528,25 +528,205 @@ def scan_liens(
 @app.command(name="calculate-risk")
 def calculate_risk(
     company_name: Annotated[str, typer.Argument(help="Company name")],
+    state: Annotated[str, typer.Option(help="State")] = "FL",
+    save: Annotated[bool, typer.Option(help="Save results to database")] = True,
 ):
     """Calculate risk score from stored data."""
-    console.print(f"[bold blue]Calculating risk for:[/] {company_name}")
+    from creep.scoring import FeatureExtractor, WeightedRiskScorer
+    from creep.db.repository import RiskScoreRepository
 
-    # TODO: Implement risk calculation
-    console.print("[yellow]Risk calculation not yet implemented (Phase 6)[/]")
+    async def _calculate():
+        # Get company
+        async with get_session() as session:
+            company_repo = CompanyRepository(session)
+            company = await company_repo.get_by_name(company_name, state)
+
+            if not company:
+                console.print(f"[red]Company '{company_name}' not found in database.[/]")
+                console.print("[dim]Run scan commands first to gather data.[/]")
+                return None
+
+            console.print(f"[dim]Found company: {company.name} (ID: {company.id})[/]")
+
+            # Extract features
+            extractor = FeatureExtractor(session)
+            features = await extractor.extract(company.id)
+
+            # Calculate score
+            scorer = WeightedRiskScorer()
+            result = scorer.calculate(features)
+
+            # Save to database if requested
+            if save:
+                risk_repo = RiskScoreRepository(session)
+                await risk_repo.create(
+                    company_id=company.id,
+                    overall_score=int(round(result.overall_score)),
+                    license_score=int(round(result.category_scores["license"])) if result.category_scores["license"] is not None else None,
+                    reputation_score=int(round(result.category_scores["reputation"])) if result.category_scores["reputation"] is not None else None,
+                    litigation_score=int(round(result.category_scores["litigation"])) if result.category_scores["litigation"] is not None else None,
+                    financial_score=int(round(result.category_scores["financial"])) if result.category_scores["financial"] is not None else None,
+                    confidence_level=result.confidence,
+                    score_breakdown=result.breakdown,
+                    data_completeness=result.data_completeness,
+                )
+                console.print("[green]Risk score saved to database.[/]")
+
+            return result
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        progress.add_task("Calculating risk score...", total=None)
+        result = asyncio.run(_calculate())
+
+    if not result:
+        return
+
+    # Display results
+    # Overall Score Panel
+    score_color = result.risk_color
+    console.print()
+    console.print(
+        Panel(
+            f"[bold {score_color}]{result.overall_score:.0f}[/]\n"
+            f"[{score_color}]{result.risk_level}[/]\n"
+            f"[dim]Confidence: {result.confidence:.0%}[/]",
+            title=f"Risk Score: {company_name}",
+            border_style=score_color,
+            padding=(1, 4),
+        )
+    )
+
+    # Category Breakdown Table
+    table = Table(title="Category Breakdown")
+    table.add_column("Category", style="cyan")
+    table.add_column("Score", justify="right")
+    table.add_column("Weight", justify="right", style="dim")
+    table.add_column("Status", justify="center")
+
+    settings = get_settings()
+    weights = {
+        "license": settings.weight_license,
+        "reputation": settings.weight_reputation,
+        "litigation": settings.weight_litigation,
+        "financial": settings.weight_financial,
+    }
+
+    for category in ["license", "reputation", "litigation", "financial"]:
+        score = result.category_scores[category]
+        available = result.data_completeness[category]
+        weight = weights[category]
+
+        if available and score is not None:
+            # Color score based on value
+            if score >= 70:
+                score_style = "green"
+            elif score >= 40:
+                score_style = "yellow"
+            else:
+                score_style = "red"
+            score_display = f"[{score_style}]{score:.0f}[/]"
+            status = "[green]Data Available[/]"
+        else:
+            score_display = "[dim]N/A[/]"
+            status = "[yellow]No Data[/]"
+
+        table.add_row(
+            category.title(),
+            score_display,
+            f"{weight:.0%}",
+            status,
+        )
+
+    console.print(table)
+
+    # Top Risk Factors
+    if result.top_factors:
+        factor_table = Table(title="Top Risk Factors")
+        factor_table.add_column("Factor", style="cyan")
+        factor_table.add_column("Impact", justify="right")
+        factor_table.add_column("Source", style="dim")
+        factor_table.add_column("Details", max_width=40)
+
+        for factor in result.top_factors[:7]:  # Show top 7
+            # Color impact based on positive/negative
+            if factor.impact > 0:
+                impact_style = "green"
+                impact_prefix = "+"
+            else:
+                impact_style = "red"
+                impact_prefix = ""
+
+            factor_table.add_row(
+                factor.name,
+                f"[{impact_style}]{impact_prefix}{factor.impact:.0f}[/]",
+                factor.source,
+                factor.details or "",
+            )
+
+        console.print(factor_table)
 
 
 @app.command()
 def report(
     company_name: Annotated[str, typer.Argument(help="Company name")],
-    format: Annotated[str, typer.Option(help="Output format: pdf, html")] = "pdf",
-    output: Annotated[str | None, typer.Option(help="Output file path")] = None,
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: pdf, html")] = "pdf",
+    output: Annotated[str | None, typer.Option("--output", "-o", help="Output file path")] = None,
+    state: Annotated[str, typer.Option(help="State")] = "FL",
 ):
-    """Generate report from stored data."""
-    console.print(f"[bold blue]Generating {format} report for:[/] {company_name}")
+    """Generate risk assessment report from stored data."""
+    from pathlib import Path
+    from creep.reports import ReportGenerator
+    from creep.db.repository import normalize_company_name
 
-    # TODO: Implement report generation
-    console.print("[yellow]Report generation not yet implemented (Phase 7)[/]")
+    async def _generate():
+        async with get_session() as session:
+            # Get company
+            company_repo = CompanyRepository(session)
+            company = await company_repo.get_by_name(company_name, state)
+
+            if not company:
+                console.print(f"[red]Company '{company_name}' not found in database.[/]")
+                console.print("[dim]Run scan commands first to gather data.[/]")
+                return None
+
+            console.print(f"[dim]Found company: {company.name} (ID: {company.id})[/]")
+
+            # Determine output path
+            normalized = normalize_company_name(company_name)
+            if output:
+                output_path = Path(output)
+            else:
+                extension = "html" if format.lower() == "html" else "pdf"
+                output_path = Path(f"{normalized}_report.{extension}")
+
+            # Generate report
+            generator = ReportGenerator()
+
+            if format.lower() == "html":
+                console.print("[dim]Generating HTML report...[/]")
+                html = await generator.generate_html(session, company.id)
+                output_path.write_text(html)
+            else:
+                console.print("[dim]Generating PDF report...[/]")
+                await generator.generate_pdf(session, company.id, output_path)
+
+            return output_path
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        progress.add_task(f"Generating {format} report...", total=None)
+        output_path = asyncio.run(_generate())
+
+    if output_path:
+        console.print(f"[bold green]Report saved to:[/] {output_path}")
+        console.print(f"[dim]Format: {format.upper()}[/]")
 
 
 @app.command(name="list-companies")
