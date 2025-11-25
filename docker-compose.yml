@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: creep-postgres
+    environment:
+      POSTGRES_USER: creep
+      POSTGRES_PASSWORD: creep
+      POSTGRES_DB: creep
+    ports:
+      - "5432:5432"
+    volumes:
+      - creep_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U creep -d creep"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  creep_postgres_data:
