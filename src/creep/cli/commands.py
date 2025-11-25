@@ -8,9 +8,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from rich.progress import Progress, SpinnerColumn, TextColumn
+
 from creep.config import get_settings
 from creep.db.engine import close_db, get_session, init_db
-from creep.db.repository import CompanyRepository
+from creep.db.repository import CompanyRepository, LicenseRepository
 
 app = typer.Typer(
     name="creep",
@@ -82,12 +84,130 @@ def scan_license(
     company_name: Annotated[str, typer.Argument(help="Company name to scan")],
     license_number: Annotated[str | None, typer.Option("--license", "-l", help="License number")] = None,
     state: Annotated[str, typer.Option(help="State to search")] = "FL",
+    save: Annotated[bool, typer.Option(help="Save results to database")] = True,
 ):
     """Scan license information from state licensing board."""
-    console.print(f"[bold blue]Scanning licenses for:[/] {company_name}")
+    from creep.scrapers.florida_dbpr import FloridaDBPRScraper
 
-    # TODO: Implement license scanning
-    console.print("[yellow]License scanning not yet implemented (Phase 2)[/]")
+    async def _scan():
+        # Get or create company
+        async with get_session() as session:
+            company_repo = CompanyRepository(session)
+            company, created = await company_repo.get_or_create(company_name, state)
+            company_id = company.id
+
+            if created:
+                console.print(f"[dim]Created new company record: {company.id}[/]")
+
+        # Run the scraper
+        async with FloridaDBPRScraper() as scraper:
+            if license_number:
+                console.print(f"[bold blue]Searching by license number:[/] {license_number}")
+                results = await scraper.search(company_name, license_number=license_number)
+            else:
+                console.print(f"[bold blue]Searching by company name:[/] {company_name}")
+                results = await scraper.search(company_name)
+
+            if not results:
+                console.print("[yellow]No licenses found.[/]")
+                return []
+
+            console.print(f"[green]Found {len(results)} license(s)[/]")
+
+            # Get detailed info for each license
+            detailed_results = []
+            for result in results:
+                console.print(f"[dim]Getting details for {result.license_number}...[/]")
+                detail = await scraper.get_details(result.license_number)
+                if detail:
+                    detailed_results.append(detail)
+                else:
+                    detailed_results.append(result)
+
+                # Check for disciplinary actions
+                actions = await scraper.get_disciplinary_actions(result.license_number)
+                if actions:
+                    console.print(
+                        f"[red]Found {len(actions)} disciplinary action(s) for {result.license_number}[/]"
+                    )
+
+            # Save to database if requested
+            if save and detailed_results:
+                from datetime import datetime
+
+                async with get_session() as session:
+                    license_repo = LicenseRepository(session)
+                    for detail in detailed_results:
+                        # Parse expiration date if it's a string
+                        exp_date = None
+                        if hasattr(detail, "expiration_date") and detail.expiration_date:
+                            if isinstance(detail.expiration_date, str):
+                                try:
+                                    exp_date = datetime.strptime(detail.expiration_date, "%m/%d/%Y").date()
+                                except ValueError:
+                                    pass
+                            else:
+                                exp_date = detail.expiration_date
+
+                        # Handle both DBPRLicenseDetail and DBPRLicenseResult
+                        if hasattr(detail, "issue_date"):
+                            await license_repo.create(
+                                company_id=company_id,
+                                license_number=detail.license_number,
+                                license_type=detail.license_type,
+                                status=detail.status,
+                                issue_date=detail.issue_date,
+                                expiration_date=exp_date,
+                                licensee_name=detail.licensee_name,
+                                address=detail.address if hasattr(detail, "address") else None,
+                                source="FL_DBPR",
+                                raw_data=detail.raw_data if hasattr(detail, "raw_data") else None,
+                            )
+                        else:
+                            await license_repo.create(
+                                company_id=company_id,
+                                license_number=detail.license_number,
+                                license_type=detail.license_type,
+                                status=detail.status,
+                                expiration_date=exp_date,
+                                licensee_name=detail.licensee_name,
+                                source="FL_DBPR",
+                            )
+                console.print("[green]Results saved to database.[/]")
+
+            return detailed_results
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        progress.add_task("Scanning Florida DBPR...", total=None)
+        results = asyncio.run(_scan())
+
+    # Display results
+    if results:
+        table = Table(title="License Search Results")
+        table.add_column("License #", style="cyan")
+        table.add_column("Name", style="white")
+        table.add_column("Type", style="dim")
+        table.add_column("Status", style="green")
+        table.add_column("Expiration", style="yellow")
+
+        for r in results:
+            status_style = "green" if r.status and r.status.upper() == "ACTIVE" else "red"
+            exp = ""
+            if hasattr(r, "expiration_date") and r.expiration_date:
+                exp = str(r.expiration_date)
+            table.add_row(
+                r.license_number,
+                r.licensee_name[:40] if r.licensee_name else "N/A",
+                r.license_type or "N/A",
+                f"[{status_style}]{r.status}[/{status_style}]" if r.status else "Unknown",
+                exp,
+            )
+
+        console.print(table)
 
 
 @app.command(name="scan-reviews")
