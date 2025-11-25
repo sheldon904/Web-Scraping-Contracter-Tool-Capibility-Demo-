@@ -317,12 +317,115 @@ def scan_reviews(
 @app.command(name="scan-courts")
 def scan_courts(
     company_name: Annotated[str, typer.Argument(help="Company name to scan")],
+    state: Annotated[str, typer.Option(help="State to search")] = "FL",
+    save: Annotated[bool, typer.Option(help="Save results to database")] = True,
+    limit: Annotated[int, typer.Option(help="Maximum results to return")] = 20,
 ):
-    """Scan court records from CourtListener."""
-    console.print(f"[bold blue]Scanning court records for:[/] {company_name}")
+    """Scan federal court records from CourtListener."""
+    from creep.scrapers.courtlistener import CourtListenerScraper
+    from creep.db.repository import CourtCaseRepository
 
-    # TODO: Implement court record scanning
-    console.print("[yellow]Court record scanning not yet implemented (Phase 4)[/]")
+    async def _scan():
+        # Get or create company
+        async with get_session() as session:
+            company_repo = CompanyRepository(session)
+            company, created = await company_repo.get_or_create(company_name, state)
+            company_id = company.id
+
+            if created:
+                console.print(f"[dim]Created new company record: {company.id}[/]")
+
+        # Check for API token
+        settings = get_settings()
+        if not settings.courtlistener_api_token:
+            console.print("[yellow]Note: No CourtListener API token configured.[/]")
+            console.print("[dim]Set COURTLISTENER_API_TOKEN in .env for better results.[/]")
+            console.print("[dim]Get a free token at: https://www.courtlistener.com/sign-in/[/]\n")
+
+        # Run the CourtListener scraper
+        async with CourtListenerScraper() as scraper:
+            console.print(f"[bold blue]Searching CourtListener for:[/] {company_name}")
+            results = await scraper.search(company_name)
+
+            if not results:
+                console.print("[yellow]No court cases found.[/]")
+                return []
+
+            # Limit results
+            results = results[:limit]
+            console.print(f"[green]Found {len(results)} court case(s)[/]")
+
+            # Save to database if requested
+            if save and results:
+                async with get_session() as session:
+                    court_repo = CourtCaseRepository(session)
+                    for case in results:
+                        await court_repo.create(
+                            company_id=company_id,
+                            source="CourtListener",
+                            case_number=case.case_number,
+                            case_type=case.nature_of_suit or case.cause,
+                            court_name=case.court,
+                            filing_date=case.filing_date,
+                            status="Terminated" if case.date_terminated else "Active",
+                            case_summary=case.case_name,
+                            external_url=case.docket_url,
+                            raw_data=case.raw_data,
+                        )
+                console.print("[green]Results saved to database.[/]")
+
+            return results
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        progress.add_task("Scanning CourtListener...", total=None)
+        results = asyncio.run(_scan())
+
+    # Display results
+    if results:
+        table = Table(title="Court Case Results")
+        table.add_column("Case Name", style="cyan", max_width=35)
+        table.add_column("Docket #", style="dim")
+        table.add_column("Court", max_width=20)
+        table.add_column("Filed", style="yellow")
+        table.add_column("Status", justify="center")
+        table.add_column("Type", max_width=20)
+
+        for case in results:
+            # Determine status
+            if case.date_terminated:
+                status = "[dim]Terminated[/]"
+            else:
+                status = "[green]Active[/]"
+
+            # Format date
+            filed = str(case.filing_date) if case.filing_date else "N/A"
+
+            # Truncate long fields
+            case_name = case.case_name[:35] if case.case_name else "N/A"
+            court = (case.court[:20] if case.court else "N/A")
+            case_type = (case.nature_of_suit[:20] if case.nature_of_suit else "N/A")
+
+            table.add_row(
+                case_name,
+                case.case_number or "N/A",
+                court,
+                filed,
+                status,
+                case_type,
+            )
+
+        console.print(table)
+
+        # Show docket URLs
+        console.print("\n[dim]Docket URLs:[/]")
+        for case in results[:5]:  # Show first 5 URLs
+            if case.docket_url:
+                short_name = case.case_name[:50] if case.case_name else "Case"
+                console.print(f"  [link={case.docket_url}]{short_name}[/link]")
 
 
 @app.command(name="scan-liens")

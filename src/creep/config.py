@@ -45,6 +45,12 @@ class Settings(BaseSettings):
         description="Run browser in headless mode",
     )
 
+    # API Keys
+    courtlistener_api_token: str | None = Field(
+        default=None,
+        description="CourtListener API token (optional, get from courtlistener.com)",
+    )
+
     # Risk Scoring Weights
     weight_license: float = Field(default=0.35, description="License category weight")
     weight_reputation: float = Field(default=0.25, description="Reputation category weight")
