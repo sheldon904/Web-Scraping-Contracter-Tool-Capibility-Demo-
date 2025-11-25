@@ -431,12 +431,98 @@ def scan_courts(
 @app.command(name="scan-liens")
 def scan_liens(
     company_name: Annotated[str, typer.Argument(help="Company name to scan")],
+    state: Annotated[str, typer.Option(help="State to search")] = "FL",
+    save: Annotated[bool, typer.Option(help="Save results to database")] = True,
 ):
-    """Scan UCC liens and filings."""
-    console.print(f"[bold blue]Scanning liens for:[/] {company_name}")
+    """Scan UCC liens and filings from Florida Secured Transaction Registry."""
+    from creep.scrapers.florida_ucc import FloridaUCCScraper
+    from creep.db.repository import LienRepository
 
-    # TODO: Implement lien scanning
-    console.print("[yellow]Lien scanning not yet implemented (Phase 5)[/]")
+    async def _scan():
+        # Get or create company
+        async with get_session() as session:
+            company_repo = CompanyRepository(session)
+            company, created = await company_repo.get_or_create(company_name, state)
+            company_id = company.id
+
+            if created:
+                console.print(f"[dim]Created new company record: {company.id}[/]")
+
+        # Run the UCC scraper
+        async with FloridaUCCScraper() as scraper:
+            console.print(f"[bold blue]Searching Florida UCC filings for:[/] {company_name}")
+            results = await scraper.search(company_name)
+
+            if not results:
+                console.print("[yellow]No UCC filings found.[/]")
+                return []
+
+            console.print(f"[green]Found {len(results)} UCC filing(s)[/]")
+
+            # Save to database if requested
+            if save and results:
+                async with get_session() as session:
+                    lien_repo = LienRepository(session)
+                    for filing in results:
+                        await lien_repo.create(
+                            company_id=company_id,
+                            lien_type=filing.filing_type or "UCC",
+                            filing_number=filing.filing_number,
+                            filing_date=filing.filing_date,
+                            secured_party=filing.secured_party_name,
+                            collateral_description=filing.collateral,
+                            status=filing.status,
+                            source="FL_FSTR",
+                            raw_data=filing.raw_data,
+                        )
+                console.print("[green]Results saved to database.[/]")
+
+            return results
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        progress.add_task("Scanning Florida UCC filings...", total=None)
+        results = asyncio.run(_scan())
+
+    # Display results
+    if results:
+        table = Table(title="UCC Filing Results")
+        table.add_column("Filing #", style="cyan")
+        table.add_column("Type", style="dim")
+        table.add_column("Debtor", max_width=25)
+        table.add_column("Secured Party", max_width=25)
+        table.add_column("Filed", style="yellow")
+        table.add_column("Lapse", style="red")
+        table.add_column("Status", justify="center")
+
+        for f in results:
+            # Determine status style
+            status_style = "green" if f.status and f.status.lower() == "active" else "dim"
+
+            filed = str(f.filing_date) if f.filing_date else "N/A"
+            lapse = str(f.lapse_date) if f.lapse_date else "N/A"
+
+            table.add_row(
+                f.filing_number or "N/A",
+                f.filing_type or "UCC",
+                (f.debtor_name[:25] if f.debtor_name else "N/A"),
+                (f.secured_party_name[:25] if f.secured_party_name else "N/A"),
+                filed,
+                lapse,
+                f"[{status_style}]{f.status or 'Unknown'}[/{status_style}]",
+            )
+
+        console.print(table)
+
+        # Show collateral info if available
+        filings_with_collateral = [f for f in results if f.collateral]
+        if filings_with_collateral:
+            console.print("\n[dim]Collateral Descriptions:[/]")
+            for f in filings_with_collateral[:3]:  # Show first 3
+                console.print(f"  {f.filing_number}: {f.collateral[:100]}...")
 
 
 @app.command(name="calculate-risk")
