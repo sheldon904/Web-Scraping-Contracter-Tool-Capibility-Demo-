@@ -13,12 +13,12 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "next": "14.2.15",
-    "react": "^18",
-    "react-dom": "^18",
-    "@neondatabase/serverless": "^0.9.5",
-    "drizzle-orm": "^0.33.0",
-    "zod": "^3.23.8",
+    "next": "15.5.28",
+    "react": "^19",
+    "react-dom": "^19",
+    "@neondatabase/serverless": "^0.10.4",
+    "drizzle-orm": "^0.45.2",
+    "zod": "^4.6.6",
     "@tanstack/react-query": "^5.56.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
@@ -30,14 +30,19 @@
   "devDependencies": {
     "typescript": "^5",
     "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "autoprefixer": "^10.4.20",
     "eslint": "^8",
-    "eslint-config-next": "14.2.15",
-    "drizzle-kit": "^0.24.2"
+    "eslint-config-next": "15.5.28",
+    "drizzle-kit": "^0.31.8"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.31"
+    }
   }
 }
