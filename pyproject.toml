@@ -20,6 +20,9 @@ dependencies = [
     "rich>=13.7",
     "weasyprint>=60.0",
     "jinja2>=3.1",
+    # Security floor: weasyprint -> fonttools pulls brotli. 1.2.1 fixes the
+    # Brotli decoder out-of-bounds write CVE-2026-111497 ("Node2Shell").
+    "brotli>=1.2.1",
 ]
 
 [project.optional-dependencies]
